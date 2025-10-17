@@ -1,0 +1,17 @@
+[project]
+name = "rtcam"
+version = "0.0.1"
+description = "Receiving frames from camera in subnet browsers via WebRTC"
+readme = "README.md"
+authors = [
+    { name = "uihp", email = "plswrxtq@gmail.com" }
+]
+requires-python = ">=3.10"
+dependencies = []
+
+[project.scripts]
+rtcam = "rtcam:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
