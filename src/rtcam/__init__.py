@@ -49,19 +49,19 @@ class WebRTC:
                     'id': candidate['sdpMid'], 'label': candidate['sdpMLineIndex']
                 })))
     async def negotiate(self):
-        async with websockets.connect(self.url) as websocket:
+        async with websockets.connect(self.url) as self.websocket:
             print('signaling server connected')
             while True:
-                if (resp := await self.handle_signal(json.loads(await websocket.recv()))):
-                    await websocket.send(resp)
+                if (resp := await self.handle_signal(json.loads(await self.websocket.recv()))):
+                    await self.websocket.send(resp)
     def create_loop(self):
         self.loop = asyncio.new_event_loop()
         def async_event_loop_thread():
             asyncio.set_event_loop(self.loop)
-            self.loop.run_forever()
+            try: self.loop.run_until_complete(self.negotiate())
+            except websockets.exceptions.ConnectionClosedOK: self.loop.close()
         self.thread = threading.Thread(target=async_event_loop_thread, daemon=True)
         self.thread.start()
-        self.loop.create_task(self.negotiate())
     async def arecv(self):
         assert self.track, 'No track now'
         assert self.state == 'connected', 'RTCPeerConnection is not connected'
@@ -69,6 +69,8 @@ class WebRTC:
     def recv(self):
         self._recv_future = asyncio.run_coroutine_threadsafe(self.arecv(), self.loop)
         return self._recv_future.result()
+    def close_websocket(self):
+        asyncio.run_coroutine_threadsafe(self.websocket.close(), self.loop)
     def cancel_recv_future(self):
         if self._recv_future: self._recv_future.cancel()
 
@@ -86,6 +88,8 @@ class CameraThread:
                 if self.__webrtc.state != 'connected': sleep(0.02)
                 try: self.frame = self.__webrtc.recv()
                 except (CancelledError, MediaStreamError, AssertionError): self.frame = None
+            self.__webrtc.close_websocket()
+            self.__webrtc.thread.join()
         self.thread = threading.Thread(target=browsercam_thread, daemon=True)
         self.thread.start()
     def stop(self, timeout=1):
