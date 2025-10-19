@@ -58,8 +58,8 @@ class WebRTC:
         self.loop = asyncio.new_event_loop()
         def async_event_loop_thread():
             asyncio.set_event_loop(self.loop)
-            try: self.loop.run_until_complete(self.negotiate())
-            except websockets.exceptions.ConnectionClosedOK: self.loop.close()
+            self.loop.run_forever()
+        self._nego_task = self.loop.create_task(self.negotiate())
         self.thread = threading.Thread(target=async_event_loop_thread, daemon=True)
         self.thread.start()
     async def arecv(self):
@@ -69,8 +69,13 @@ class WebRTC:
     def recv(self):
         self._recv_future = asyncio.run_coroutine_threadsafe(self.arecv(), self.loop)
         return self._recv_future.result()
-    def close_websocket(self):
-        asyncio.run_coroutine_threadsafe(self.websocket.close(), self.loop)
+    def close_loop(self):
+        self.cancel_recv_future()
+        self.peer_conn.remove_all_listeners('connectionstatechange')
+        asyncio.run_coroutine_threadsafe(self.peer_conn.close(), self.loop).result()
+        asyncio.run_coroutine_threadsafe(self.websocket.close(), self.loop).result()
+        assert isinstance(self._nego_task.exception(), websockets.exceptions.ConnectionClosedOK)
+        self.loop.call_soon_threadsafe(self.loop.stop)
     def cancel_recv_future(self):
         if self._recv_future: self._recv_future.cancel()
 
@@ -88,14 +93,13 @@ class CameraThread:
                 if self.__webrtc.state != 'connected': sleep(0.02)
                 try: self.frame = self.__webrtc.recv()
                 except (CancelledError, MediaStreamError, AssertionError): self.frame = None
-            self.__webrtc.close_websocket()
+            self.__webrtc.close_loop()
             self.__webrtc.thread.join()
         self.thread = threading.Thread(target=browsercam_thread, daemon=True)
         self.thread.start()
     def stop(self, timeout=1):
         if not self.__running: return
         self.__running = False
-        self.__webrtc.cancel_recv_future()
         self.thread.join(timeout)
         assert not self.thread.is_alive(), 'Failed to stop the camera thread'
 

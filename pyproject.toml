@@ -1,6 +1,6 @@
 [project]
 name = "rtcam"
-version = "0.0.1"
+version = "0.0.3"
 description = "Receiving frames from camera in subnet browsers via WebRTC"
 readme = "README.md"
 authors = [
