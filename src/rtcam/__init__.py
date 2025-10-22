@@ -75,6 +75,7 @@ class WebRTC:
         asyncio.run_coroutine_threadsafe(self.peer_conn.close(), self.loop).result()
         asyncio.run_coroutine_threadsafe(self.websocket.close(), self.loop).result()
         assert isinstance(self._nego_task.exception(), websockets.exceptions.ConnectionClosedOK)
+        for task in asyncio.all_tasks(self.loop): task.cancel()
         self.loop.call_soon_threadsafe(self.loop.stop)
     def cancel_recv_future(self):
         if self._recv_future: self._recv_future.cancel()
