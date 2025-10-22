@@ -75,8 +75,11 @@ class WebRTC:
         asyncio.run_coroutine_threadsafe(self.peer_conn.close(), self.loop).result()
         asyncio.run_coroutine_threadsafe(self.websocket.close(), self.loop).result()
         assert isinstance(self._nego_task.exception(), websockets.exceptions.ConnectionClosedOK)
+        print('signaling server disconnected')
         for task in asyncio.all_tasks(self.loop): task.cancel()
         self.loop.call_soon_threadsafe(self.loop.stop)
+        self.thread.join()
+        self.loop.close()
     def cancel_recv_future(self):
         if self._recv_future: self._recv_future.cancel()
 
@@ -95,7 +98,6 @@ class CameraThread:
                 try: self.frame = self.__webrtc.recv()
                 except (CancelledError, MediaStreamError, AssertionError): self.frame = None
             self.__webrtc.close_loop()
-            self.__webrtc.thread.join()
         self.thread = threading.Thread(target=browsercam_thread, daemon=True)
         self.thread.start()
     def stop(self, timeout=1):
